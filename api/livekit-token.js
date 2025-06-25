@@ -1,3 +1,5 @@
+import { AccessToken } from 'livekit-server-sdk';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -5,21 +7,35 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { participantName, roomName } = req.body;
+    const { participantName, roomName, role } = req.body;
 
     if (!participantName || !roomName) {
       return res.status(400).json({ error: 'Missing participantName or roomName' });
     }
 
-    // In a real app, we would use the LiveKit server SDK to generate a token
-    // For demo purposes, we'll return a mock token
-    const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTA3ODAwMDAsImlzcyI6IkFQSVMyU0ZhTndFVnozUiIsIm5hbWUiOiJUZXN0IFVzZXIiLCJuYmYiOjE3NTA2OTM2MDAsInN1YiI6InRlc3QtdXNlciIsInZpZGVvIjp7InJvb20iOiJ0ZXN0LXJvb20iLCJyb29tSm9pbiI6dHJ1ZX19.HS4A0Nj_OdVe9rGFvHFEkCVnrfn2F2WTYUIkTlTDtlk";
-    
-    res.json({ 
-      token: mockToken,
-      url: import.meta.env.VITE_LIVEKIT_URL || "wss://test-vumsi8kt.livekit.cloud",
-      roomName
+    const livekitApiKey = process.env.LIVEKIT_API_KEY;
+    const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
+
+    if (!livekitApiKey || !livekitApiSecret) {
+      return res.status(500).json({ error: 'LiveKit credentials not configured' });
+    }
+
+    const accessToken = new AccessToken(livekitApiKey, livekitApiSecret, {
+      identity: participantName,
+      name: participantName,
     });
+
+    accessToken.addGrant({
+      room: roomName,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+      canUpdateOwnMetadata: true,
+    });
+
+    const token = accessToken.toJwt();
+    res.json({ token });
   } catch (error) {
     console.error('Error generating LiveKit token:', error);
     res.status(500).json({ error: 'Failed to generate token' });

@@ -109,3 +109,5 @@ class DeepgramService extends TranscriptionService {
     this.onErrorCallback = callback;
   }
 }
+
+export { TranscriptionService }

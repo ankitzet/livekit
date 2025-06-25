@@ -12,5 +12,16 @@ export default defineConfig({
   server: {
     port: 5000,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/ws': {
+        target: 'ws://localhost:5000',
+        ws: true,
+      }
+    }
   },
 });

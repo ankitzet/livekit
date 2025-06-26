@@ -9,7 +9,7 @@ export interface LiveKitTokenResponse {
 }
 
 export class LiveKitService {
-  private room: Room | null = null;A
+  private room: Room | null = null;
 
   async getAccessToken(roomName: string, participantName: string): Promise<LiveKitTokenResponse> {
     const response = await fetch('/api/livekit/token', {
@@ -24,7 +24,8 @@ export class LiveKitService {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to get access token');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to get access token');
     }
 
     return response.json();
@@ -37,7 +38,15 @@ export class LiveKitService {
         await this.disconnectFromRoom();
       }
 
-      const { token, url } = await this.getAccessToken(roomName, participantName);
+      // Get the WebSocket URL from environment variables
+      const WS_URL = import.meta.env.VITE_LIVEKIT_WS_URL;
+      if (!WS_URL) {
+        throw new Error('Missing VITE_LIVEKIT_WS_URL environment variable');
+      }
+
+      console.log('LiveKit WS URL:', WS_URL);
+
+      const { token } = await this.getAccessToken(roomName, participantName);
       
       this.room = new Room({
         adaptiveStream: true,
@@ -54,8 +63,10 @@ export class LiveKitService {
         },
       });
 
-      console.log('Connecting to room with enhanced configuration...');
-      await this.room.connect(url, token);
+      console.log('Connecting to room with participant name:', participantName, 'Role:', participantName.includes('interviewer') ? 'Interviewer' : 'Candidate');
+      
+      // Use the environment variable URL instead of the one from the token response
+      await this.room.connect(WS_URL, token);
       console.log('Successfully connected to room');
       
       // Enable camera and microphone with error handling

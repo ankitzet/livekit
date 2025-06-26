@@ -276,6 +276,22 @@ export default function Meeting({ params }: MeetingProps) {
   const urlParams = new URLSearchParams(window.location.search);
   const isInterviewer = urlParams.get("role") === "interviewer";
 
+  // Debug environment variables on component mount
+  useEffect(() => {
+    console.log('🔍 Environment Variables Check:');
+    console.log('VITE_LIVEKIT_WS_URL →', import.meta.env.VITE_LIVEKIT_WS_URL);
+    console.log('All env vars:', import.meta.env);
+    
+    // Test the environment variable
+    const wsUrl = import.meta.env.VITE_LIVEKIT_WS_URL;
+    if (!wsUrl) {
+      console.error('❌ Missing VITE_LIVEKIT_WS_URL environment variable');
+      console.log('Please add VITE_LIVEKIT_WS_URL to your .env file');
+    } else {
+      console.log('✅ VITE_LIVEKIT_WS_URL is configured:', wsUrl);
+    }
+  }, []);
+
   const [customInstruction, setCustomInstruction] = useState("");
   const [interviewPlan, setInterviewPlan] = useState(() => {
     // First try to get from sessionStorage (from home page)

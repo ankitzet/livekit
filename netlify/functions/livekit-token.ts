@@ -1,20 +1,8 @@
 import { Handler } from '@netlify/functions';
 import { AccessToken } from 'livekit-server-sdk';
-import { nanoid } from 'nanoid';
 
 export const handler: Handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
+  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -24,6 +12,18 @@ export const handler: Handler = async (event) => {
         'Access-Control-Allow-Methods': 'POST, OPTIONS'
       },
       body: ''
+    };
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
@@ -46,6 +46,11 @@ export const handler: Handler = async (event) => {
     const livekitUrl = process.env.LIVEKIT_URL;
 
     if (!apiKey || !apiSecret || !livekitUrl) {
+      console.error('Missing LiveKit credentials:', {
+        hasApiKey: !!apiKey,
+        hasApiSecret: !!apiSecret,
+        hasUrl: !!livekitUrl
+      });
       return {
         statusCode: 500,
         headers: {
@@ -56,9 +61,25 @@ export const handler: Handler = async (event) => {
       };
     }
 
+    // Validate that API key and secret are properly formatted
+    if (!apiKey.startsWith('API') || apiSecret.length < 32) {
+      console.error('Invalid LiveKit credential format:', {
+        apiKeyFormat: apiKey.substring(0, 3),
+        secretLength: apiSecret.length
+      });
+      return {
+        statusCode: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ error: 'Invalid LiveKit credential format' })
+      };
+    }
+
     const token = new AccessToken(apiKey, apiSecret, {
       identity: participantName,
-      name: participantName.split('-').pop()
+      name: participantName.split('-').pop() || participantName
     });
 
     token.addGrant({
@@ -86,7 +107,23 @@ export const handler: Handler = async (event) => {
       })
     };
   } catch (error) {
-    console.error('Error generating token:', error);
+    console.error('Error generating LiveKit token:', error);
+    
+    // Check if it's a credential-related error
+    if (error.message && error.message.includes('cryptographic primitive')) {
+      return {
+        statusCode: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          error: 'Invalid LiveKit credentials. Please check your API key and secret.',
+          details: 'The API key and secret do not match or are invalid.'
+        })
+      };
+    }
+
     return {
       statusCode: 500,
       headers: {

@@ -2,77 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { livekitTokenRequestSchema, insertMeetingSchema } from "@shared/schema";
-import { AccessToken } from "livekit-server-sdk";
-import fetch from "node-fetch";
+import { insertMeetingSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // LiveKit token generation endpoint
-  app.post("/api/livekit/token", async (req, res) => {
-    try {
-      const { roomName, participantName } = livekitTokenRequestSchema.parse(req.body);
-      
-      const livekitUrl = process.env.LIVEKIT_URL;
-      const apiKey = process.env.LIVEKIT_API_KEY;
-      const apiSecret = process.env.LIVEKIT_API_SECRET;
-
-      if (!livekitUrl || !apiKey || !apiSecret) {
-        return res.status(500).json({ error: "LiveKit configuration missing" });
-      }
-
-      // Create or get existing meeting
-      let meeting = await storage.getMeetingByRoomName(roomName);
-      if (!meeting) {
-        meeting = await storage.createMeeting({ roomName });
-      }
-
-      // Check if this is the first participant (interviewer)
-      const isFirstParticipant = (meeting.participantCount || 0) === 0;
-      
-      // Increment participant count
-      await storage.incrementMeetingParticipants(meeting.id);
-      
-      // Generate LiveKit access token with unique identity
-      const uniqueIdentity = isFirstParticipant 
-        ? `interviewer-${roomName}-${Date.now()}`
-        : `candidate-${participantName}-${Date.now()}`;
-      console.log('Generating token for participant:', uniqueIdentity, 'in room:', roomName, 'isFirstParticipant:', isFirstParticipant);
-      
-      const token = new AccessToken(apiKey, apiSecret, {
-        identity: uniqueIdentity,
-        name: participantName, // Display name
-        ttl: '4h', // 4 hours
-      });
-
-      token.addGrant({
-        room: roomName,
-        roomJoin: true,
-        canPublish: true,
-        canSubscribe: true,
-        canPublishData: true,
-        canUpdateOwnMetadata: true,
-        // Add more specific permissions
-        roomCreate: false,
-        roomList: false,
-        roomRecord: false,
-        roomAdmin: false,
-        ingressAdmin: false,
-      });
-
-      const jwt = await token.toJwt();
-
-      res.json({
-        token: jwt,
-        url: livekitUrl,
-        roomName,
-        meetingId: meeting.id,
-      });
-    } catch (error) {
-      console.error("Error generating LiveKit token:", error);
-      res.status(400).json({ error: "Invalid request" });
-    }
-  });
-
   // Meeting management endpoints
   app.post("/api/meetings", async (req, res) => {
     try {
@@ -273,9 +205,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Gemini API endpoint for follow-up suggestions
   // Health check endpoint for deployment monitoring
-  app.get('/api/health', (req: Request, res: Response) => {
+  app.get('/api/health', (req, res) => {
     const healthStatus = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -285,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       services: {
         database: 'connected',
         websocket: wss ? 'connected' : 'disconnected',
-        livekit: process.env.LIVEKIT_API_KEY ? 'configured' : 'not_configured',
+        jitsi: 'external_service',
         deepgram: process.env.DEEPGRAM_API_KEY ? 'configured' : 'not_configured',
         gemini: process.env.GEMINI_API_KEY ? 'configured' : 'not_configured'
       }
@@ -295,7 +226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(healthStatus);
   });
 
-  app.post('/api/gemini/follow-up-suggestions', async (req: Request, res: Response) => {
+  app.post('/api/gemini/follow-up-suggestions', async (req, res) => {
     try {
       console.log('🚀 Received follow-up suggestions request');
       const { transcriptText, jobDescription, customInstruction } = req.body;

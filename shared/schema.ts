@@ -46,11 +46,3 @@ export type Meeting = typeof meetings.$inferSelect;
 
 export type InsertTranscriptionSession = z.infer<typeof insertTranscriptionSessionSchema>;
 export type TranscriptionSession = typeof transcriptionSessions.$inferSelect;
-
-// Additional schemas for API
-export const livekitTokenRequestSchema = z.object({
-  roomName: z.string().min(1),
-  participantName: z.string().min(1),
-});
-
-export type LivekitTokenRequest = z.infer<typeof livekitTokenRequestSchema>;

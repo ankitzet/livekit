@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { useMeeting } from "@/hooks/use-meeting";
+import { useJitsiMeeting } from "@/hooks/use-jitsi-meeting";
 import { useTranscription } from "@/hooks/use-transcription";
 import { useFollowUpSuggestions } from "@/hooks/use-follow-up-suggestions";
 import { useInterviewTimer } from "@/hooks/use-interview-timer";
@@ -10,10 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import VideoGrid from "@/components/video-grid";
+import JitsiMeetingContainer from "@/components/jitsi-meeting-container";
 import MeetingControls from "@/components/meeting-controls";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { useEnhancedTranscription } from "@/hooks/use-enhanced-transcription";
 
 import {
   Video,
@@ -29,323 +28,16 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-// Import ParticipantVideo directly from video-grid
-function ParticipantVideo({
-  participant,
-  isLocal = false,
-  userRole,
-}: {
-  participant: any;
-  isLocal?: boolean;
-  userRole?: string;
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    if (!videoRef.current) return;
-
-    const videoElement = videoRef.current;
-
-    if (isLocal) {
-      // Handle local participant
-      const localParticipant = participant;
-
-      const attachLocalVideo = () => {
-        console.log(
-          "Attempting to attach local video for:",
-          localParticipant.identity,
-        );
-        console.log(
-          "Available video publications:",
-          Array.from(localParticipant.videoTrackPublications.keys()),
-        );
-
-        const videoTrack = Array.from(
-          localParticipant.videoTrackPublications.values(),
-        )[0]?.videoTrack;
-
-        console.log(
-          "Found video track:",
-          !!videoTrack,
-          "Video element:",
-          !!videoElement,
-        );
-
-        if (videoTrack && videoElement) {
-          try {
-            if (videoElement.readyState !== undefined) {
-              videoTrack.attach(videoElement);
-              console.log(
-                "✅ Local video attached successfully for:",
-                localParticipant.identity,
-              );
-              setHasVideo(true);
-            }
-          } catch (error) {
-            console.error("❌ Error attaching local video:", error);
-            setHasVideo(false);
-          }
-        } else {
-          console.log("⚠️ Missing requirements for video attachment:", {
-            videoTrack: !!videoTrack,
-            videoElement: !!videoElement,
-          });
-          setHasVideo(false);
-        }
-      };
-
-      // Initial attachment attempt
-      setTimeout(attachLocalVideo, 100);
-
-      const handleTrackPublished = () => {
-        console.log("Local track published, attempting to attach video");
-        setTimeout(attachLocalVideo, 200);
-      };
-
-      localParticipant.on("trackPublished", handleTrackPublished);
-
-      return () => {
-        localParticipant.off("trackPublished", handleTrackPublished);
-        if (videoElement && videoElement.srcObject) {
-          const tracks = (videoElement.srcObject as MediaStream)?.getTracks();
-          tracks?.forEach((track) => track.stop());
-          videoElement.srcObject = null;
-        }
-      };
-    } else {
-      // Handle remote participant
-      const remoteParticipant = participant;
-
-      const attachRemoteVideo = () => {
-        console.log(
-          "Attempting to attach remote video for:",
-          remoteParticipant.identity,
-        );
-        console.log(
-          "Available remote video publications:",
-          Array.from(remoteParticipant.videoTrackPublications.keys()),
-        );
-
-        const videoTrack = Array.from(
-          remoteParticipant.videoTrackPublications.values(),
-        )[0]?.videoTrack;
-
-        console.log(
-          "Found remote video track:",
-          !!videoTrack,
-          "Video element:",
-          !!videoElement,
-        );
-
-        if (videoTrack && videoElement) {
-          try {
-            if (videoElement.readyState !== undefined) {
-              videoTrack.attach(videoElement);
-              console.log(
-                "✅ Remote video attached successfully for:",
-                remoteParticipant.identity,
-              );
-              setHasVideo(true);
-            }
-          } catch (error) {
-            console.error("❌ Error attaching remote video:", error);
-            setHasVideo(false);
-          }
-        } else {
-          console.log("⚠️ Missing requirements for remote video attachment:", {
-            videoTrack: !!videoTrack,
-            videoElement: !!videoElement,
-          });
-          setHasVideo(false);
-        }
-      };
-
-      // Initial attachment attempt
-      setTimeout(attachRemoteVideo, 100);
-
-      const handleTrackSubscribed = (track: any) => {
-        console.log(
-          "Remote track subscribed:",
-          track.kind,
-          "for:",
-          remoteParticipant.identity,
-        );
-        if (track.kind === "video") {
-          console.log(
-            "Remote video track subscribed for:",
-            remoteParticipant.identity,
-          );
-          setTimeout(attachRemoteVideo, 200);
-        } else if (track.kind === "audio") {
-          console.log(
-            "Remote audio track subscribed for:",
-            remoteParticipant.identity,
-          );
-          // Create audio element for remote participant
-          const audioElement = document.createElement("audio");
-          audioElement.autoplay = true;
-          audioElement.style.display = "none";
-          document.body.appendChild(audioElement);
-
-          try {
-            track.attach(audioElement);
-            console.log(
-              "✅ Remote audio attached successfully for:",
-              remoteParticipant.identity,
-            );
-          } catch (error) {
-            console.error("❌ Error attaching remote audio:", error);
-          }
-        }
-      };
-
-      remoteParticipant.on("trackSubscribed", handleTrackSubscribed);
-
-      return () => {
-        remoteParticipant.off("trackSubscribed", handleTrackSubscribed);
-        if (videoElement && videoElement.srcObject) {
-          const tracks = (videoElement.srcObject as MediaStream)?.getTracks();
-          tracks?.forEach((track) => track.stop());
-          videoElement.srcObject = null;
-        }
-      };
-    }
-  }, [participant, isLocal]);
-
-  const [hasVideo, setHasVideo] = useState(false);
-
-  useEffect(() => {
-    const videoElement = videoRef.current;
-    if (videoElement) {
-      const handleLoadedData = () => {
-        console.log("Video loaded successfully");
-        setHasVideo(true);
-      };
-
-      const handleError = (error: any) => {
-        console.error("Video error:", error);
-        setHasVideo(false);
-      };
-
-      videoElement.addEventListener("loadeddata", handleLoadedData);
-      videoElement.addEventListener("error", handleError);
-
-      return () => {
-        videoElement.removeEventListener("loadeddata", handleLoadedData);
-        videoElement.removeEventListener("error", handleError);
-      };
-    }
-  }, []);
-
-  return (
-    <div className="relative w-full h-full bg-gray-900 flex items-center justify-center">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted={isLocal}
-        className="w-full h-full object-cover"
-        style={{
-          display: "block",
-          visibility: hasVideo ? "visible" : "hidden",
-        }}
-      />
-      {/* Fallback when no video */}
-      {!hasVideo && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-          <div className="text-center text-white">
-            <User className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-            <p className="text-sm text-gray-400">
-              {isLocal ? "Your camera" : "Participant camera"}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface MeetingProps {
   params: {
     roomName: string;
   };
 }
 
-// Environment Configuration Check Component
-function EnvironmentCheck() {
-  const wsUrl = import.meta.env.VITE_LIVEKIT_WS_URL;
-  
-  if (!wsUrl || wsUrl === 'wss://your-project-name.livekit.cloud') {
-    return (
-      <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-          <div className="text-red-600 mb-4 text-center">
-            <AlertTriangle className="w-12 h-12 mx-auto" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4 text-center">
-            Configuration Required
-          </h2>
-          <div className="space-y-3 text-sm text-gray-600">
-            <p>Your LiveKit configuration is missing or incomplete.</p>
-            <div className="bg-gray-50 p-3 rounded">
-              <p className="font-medium mb-2">To fix this:</p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>Go to <a href="https://cloud.livekit.io" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">cloud.livekit.io</a></li>
-                <li>Create or select your project</li>
-                <li>Go to Settings → Keys</li>
-                <li>Copy your project's WebSocket URL</li>
-                <li>Update your .env file with the correct VITE_LIVEKIT_WS_URL</li>
-                <li>Restart the application</li>
-              </ol>
-            </div>
-            <p className="text-xs text-gray-500">
-              Current VITE_LIVEKIT_WS_URL: {wsUrl || 'Not set'}
-            </p>
-          </div>
-          <Button 
-            onClick={() => window.location.reload()} 
-            className="w-full mt-4"
-          >
-            Retry After Configuration
-          </Button>
-        </div>
-      </div>
-    );
-  }
-  
-  return null;
-}
-
-// Clean version - will copy back
 export default function Meeting({ params }: MeetingProps) {
   const { roomName } = params;
   const urlParams = new URLSearchParams(window.location.search);
   const isInterviewer = urlParams.get("role") === "interviewer";
-
-  // Check environment configuration first
-  const envCheck = EnvironmentCheck();
-  if (envCheck) {
-    return envCheck;
-  }
-
-  // Debug environment variables on component mount
-  useEffect(() => {
-    console.log('🔍 Environment Variables Check:');
-    console.log('VITE_LIVEKIT_WS_URL →', import.meta.env.VITE_LIVEKIT_WS_URL);
-    console.log('All env vars:', import.meta.env);
-    
-    // Test the environment variable
-    const wsUrl = import.meta.env.VITE_LIVEKIT_WS_URL;
-    if (!wsUrl) {
-      console.error('❌ Missing VITE_LIVEKIT_WS_URL environment variable');
-      console.log('Please add VITE_LIVEKIT_WS_URL to your .env file');
-    } else if (wsUrl === 'wss://your-project-name.livekit.cloud') {
-      console.warn('⚠️ VITE_LIVEKIT_WS_URL is still set to placeholder value');
-      console.log('Please update VITE_LIVEKIT_WS_URL with your actual LiveKit project URL');
-    } else {
-      console.log('✅ VITE_LIVEKIT_WS_URL is configured:', wsUrl);
-    }
-  }, []);
 
   const [customInstruction, setCustomInstruction] = useState("");
   const [interviewPlan, setInterviewPlan] = useState(() => {
@@ -401,18 +93,19 @@ export default function Meeting({ params }: MeetingProps) {
   });
 
   const {
-    room,
-    localParticipant,
-    participants,
+    containerRef,
     isConnected,
+    isConnecting,
     error,
-    connectToRoom,
-    disconnectFromRoom,
+    participants,
     isMuted,
     isVideoDisabled,
+    connectToRoom,
+    disconnectFromRoom,
     toggleMute,
     toggleVideo,
-  } = useMeeting();
+    toggleScreenShare,
+  } = useJitsiMeeting();
 
   const {
     transcriptions: rawTranscriptions,
@@ -421,12 +114,12 @@ export default function Meeting({ params }: MeetingProps) {
     stopTranscription,
     clearTranscriptions,
     error: transcriptionError,
-  } = useEnhancedTranscription(room);
+  } = useTranscription("deepgram", null, isInterviewer);
 
   const transcriptions = rawTranscriptions.map((t, index) => ({
     id: `${t.timestamp}-${index}`,
     speaker: t.speaker || "Mixed Audio",
-    text: t.transcript,
+    text: t.text,
     timestamp: t.timestamp,
     isFinal: t.isFinal,
     confidence: t.confidence,
@@ -444,17 +137,17 @@ export default function Meeting({ params }: MeetingProps) {
     reset: resetTimer,
   } = timerHook;
 
-  // Timer debugging disabled for production
-
   const formatTime = (minutes: number, seconds: number) => {
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
   useEffect(() => {
     const participantName = isInterviewer
-      ? `interviewer-${Date.now()}`
-      : `candidate-${Date.now()}`;
-    connectToRoom(roomName, participantName);
+      ? `Interviewer-${Date.now()}`
+      : `Candidate-${Date.now()}`;
+    
+    const userRole = isInterviewer ? 'interviewer' : 'candidate';
+    connectToRoom(roomName, participantName, userRole);
 
     return () => {
       disconnectFromRoom();
@@ -473,6 +166,15 @@ export default function Meeting({ params }: MeetingProps) {
     }
   };
 
+  const handleRetryConnection = () => {
+    const participantName = isInterviewer
+      ? `Interviewer-${Date.now()}`
+      : `Candidate-${Date.now()}`;
+    
+    const userRole = isInterviewer ? 'interviewer' : 'candidate';
+    connectToRoom(roomName, participantName, userRole);
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
@@ -484,17 +186,7 @@ export default function Meeting({ params }: MeetingProps) {
             Connection Error
           </h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          {error.includes('VITE_LIVEKIT_WS_URL') && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4 text-left">
-              <p className="text-sm text-yellow-800 font-medium mb-2">Configuration Help:</p>
-              <ol className="text-xs text-yellow-700 list-decimal list-inside space-y-1">
-                <li>Check your .env file exists in the project root</li>
-                <li>Ensure VITE_LIVEKIT_WS_URL is set to your LiveKit WebSocket URL</li>
-                <li>Restart the development server after updating .env</li>
-              </ol>
-            </div>
-          )}
-          <Button onClick={() => window.location.reload()}>Try Again</Button>
+          <Button onClick={handleRetryConnection}>Try Again</Button>
         </div>
       </div>
     );
@@ -513,7 +205,7 @@ export default function Meeting({ params }: MeetingProps) {
               variant={isConnected ? "default" : "secondary"}
               className="text-xs"
             >
-              {isConnected ? "Connected" : "Connecting..."}
+              {isConnected ? "Connected" : isConnecting ? "Connecting..." : "Disconnected"}
             </Badge>
             {participants.length > 0 && (
               <Badge variant="outline" className="text-xs">
@@ -552,10 +244,10 @@ export default function Meeting({ params }: MeetingProps) {
       {/* Main Content */}
       <div className="p-6 pt-20">
         {/* New Meeting Layout for Interviewer */}
-        {isInterviewer && isConnected && room && (
+        {isInterviewer && (
           <div className="h-[calc(100vh-200px)] flex gap-4">
-            {/* Main Content Area - Candidate Video (70% width) */}
-            <div className="flex-1 relative bg-gray-900 rounded-lg overflow-hidden">
+            {/* Main Content Area - Video Meeting (70% width) */}
+            <div className="flex-1 relative">
               {/* Timer Nudge - Only visible to interviewer */}
               {timerState?.shouldShowNudge && timerState?.nextBlock && (
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-yellow-500 text-black px-4 py-2 rounded-lg shadow-lg animate-pulse">
@@ -565,78 +257,38 @@ export default function Meeting({ params }: MeetingProps) {
                 </div>
               )}
 
-              {/* Large Candidate Video */}
-              {participants.length > 0 ? (
-                participants
-                  .filter((p) => !p.identity.includes("interviewer"))
-                  .map((participant) => (
-                    <div
-                      key={participant.identity}
-                      className="w-full h-full relative"
-                    >
-                      <ParticipantVideo
-                        participant={participant}
-                        isLocal={false}
-                        userRole="interviewer"
-                      />
-                      <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded text-sm">
-                        Candidate
-                      </div>
-
-                      {/* 5-Second Countdown Overlay */}
-                      {timerState?.countdownSecondsLeft &&
-                        timerState.countdownSecondsLeft > 0 && (
-                          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-                            <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-4 rounded-xl shadow-2xl border border-white/20">
-                              <div className="text-center">
-                                <div className="text-lg font-semibold mb-1">
-                                  Reminder - Time for next part starts in
-                                </div>
-                                <div className="text-3xl font-bold text-yellow-400">
-                                  {Math.ceil(timerState.countdownSecondsLeft)}{" "}
-                                  sec
-                                </div>
-                                {timerState.nextBlock && (
-                                  <div className="text-sm text-gray-300 mt-1">
-                                    Next: {timerState.nextBlock.label}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+              {/* 5-Second Countdown Overlay */}
+              {timerState?.countdownSecondsLeft &&
+                timerState.countdownSecondsLeft > 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                    <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-4 rounded-xl shadow-2xl border border-white/20">
+                      <div className="text-center">
+                        <div className="text-lg font-semibold mb-1">
+                          Reminder - Time for next part starts in
+                        </div>
+                        <div className="text-3xl font-bold text-yellow-400">
+                          {Math.ceil(timerState.countdownSecondsLeft)} sec
+                        </div>
+                        {timerState.nextBlock && (
+                          <div className="text-sm text-gray-300 mt-1">
+                            Next: {timerState.nextBlock.label}
                           </div>
                         )}
-                    </div>
-                  ))
-              ) : (
-                <div className="flex items-center justify-center h-full relative">
-                  <div className="text-center text-white">
-                    <User className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg">Waiting for candidate to join...</p>
-                  </div>
-
-                  {/* 5-Second Countdown Overlay (when no candidate) */}
-                  {timerState?.countdownSecondsLeft &&
-                    timerState.countdownSecondsLeft > 0 && (
-                      <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-                        <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-4 rounded-xl shadow-2xl border border-white/20">
-                          <div className="text-center">
-                            <div className="text-lg font-semibold mb-1">
-                              Reminder - Time for next part starts in
-                            </div>
-                            <div className="text-3xl font-bold text-yellow-400">
-                              {Math.ceil(timerState.countdownSecondsLeft)} sec
-                            </div>
-                            {timerState.nextBlock && (
-                              <div className="text-sm text-gray-300 mt-1">
-                                Next: {timerState.nextBlock.label}
-                              </div>
-                            )}
-                          </div>
-                        </div>
                       </div>
-                    )}
-                </div>
-              )}
+                    </div>
+                  </div>
+                )}
+
+              {/* Jitsi Meeting Container */}
+              <JitsiMeetingContainer
+                containerRef={containerRef}
+                isConnecting={isConnecting}
+                isConnected={isConnected}
+                error={error}
+                participants={participants}
+                roomName={roomName}
+                onRetry={handleRetryConnection}
+              />
 
               {/* Interview Plan Panel - Bottom right corner */}
               {timerState?.currentBlock && (
@@ -671,38 +323,6 @@ export default function Meeting({ params }: MeetingProps) {
                   </div>
                 </div>
               )}
-
-              {/* Bottom Left - Small Interviewer Video */}
-              <div className="absolute bottom-4 left-4">
-                <div className="w-48 h-32 bg-gray-800 rounded-lg overflow-hidden border-2 border-white shadow-lg relative">
-                  {localParticipant ? (
-                    <ParticipantVideo
-                      participant={localParticipant}
-                      isLocal={true}
-                      userRole="interviewer"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-white">
-                      <Video className="w-8 h-8" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-1 left-1 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                    You (Interviewer)
-                  </div>
-                </div>
-              </div>
-
-              {/* Exit Interview Button - Top Right */}
-              <div className="absolute top-4 right-4">
-                <Button
-                  onClick={disconnectFromRoom}
-                  variant="destructive"
-                  size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Exit Interview
-                </Button>
-              </div>
             </div>
 
             {/* Right Sidebar (30% width) */}
@@ -837,7 +457,7 @@ export default function Meeting({ params }: MeetingProps) {
                                   ? "default"
                                   : transcription.speaker === "Candidate"
                                     ? "secondary"
-                                    : "outline" // For "unknown" speakers
+                                    : "outline"
                               }
                               className="text-xs px-1 py-0"
                             >
@@ -865,16 +485,8 @@ export default function Meeting({ params }: MeetingProps) {
           </div>
         )}
 
-        {/* Fallback for when not connected */}
-        {!isConnected || !room ? (
-          <div className="text-center py-12">
-            <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Setting up video connection...</p>
-          </div>
-        ) : null}
-
         {/* Candidate View */}
-        {!isInterviewer && isConnected && room && (
+        {!isInterviewer && (
           <div className="h-[calc(100vh-200px)]">
             <ErrorBoundary
               fallback={
@@ -885,25 +497,16 @@ export default function Meeting({ params }: MeetingProps) {
                 </div>
               }
             >
-              <VideoGrid
-                room={room}
-                localParticipant={localParticipant}
+              <JitsiMeetingContainer
+                containerRef={containerRef}
+                isConnecting={isConnecting}
+                isConnected={isConnected}
+                error={error}
                 participants={participants}
-                userRole="candidate"
+                roomName={roomName}
+                onRetry={handleRetryConnection}
               />
             </ErrorBoundary>
-          </div>
-        )}
-
-        {!isInterviewer && (!isConnected || !room) && (
-          <div className="text-center py-12">
-            <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Candidate View
-            </h2>
-            <p className="text-gray-600">
-              Setting up your interview connection...
-            </p>
           </div>
         )}
       </div>
@@ -914,9 +517,7 @@ export default function Meeting({ params }: MeetingProps) {
         isVideoDisabled={isVideoDisabled}
         onToggleMute={toggleMute}
         onToggleVideo={toggleVideo}
-        onToggleScreenShare={() => {
-          /* TODO: Implement screen share */
-        }}
+        onToggleScreenShare={toggleScreenShare}
         onOpenSettings={() => {
           /* TODO: Implement settings */
         }}

@@ -32,16 +32,37 @@ export default async function handler(req, res) {
         hasApiSecret: !!livekitApiSecret,
         hasUrl: !!livekitUrl
       });
-      return res.status(500).json({ error: 'LiveKit credentials not configured' });
+      return res.status(500).json({ 
+        error: 'LiveKit credentials not configured',
+        details: 'Please check your environment variables: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL'
+      });
     }
 
-    // Validate that API key and secret are properly formatted
-    if (!livekitApiKey.startsWith('API') || livekitApiSecret.length < 32) {
-      console.error('Invalid LiveKit credential format:', {
-        apiKeyFormat: livekitApiKey.substring(0, 3),
-        secretLength: livekitApiSecret.length
+    // Enhanced credential validation
+    if (!livekitApiKey.startsWith('API')) {
+      console.error('Invalid LiveKit API Key format - should start with "API"');
+      return res.status(500).json({ 
+        error: 'Invalid LiveKit API Key format',
+        details: 'API Key should start with "API". Please check your credentials at https://cloud.livekit.io'
       });
-      return res.status(500).json({ error: 'Invalid LiveKit credential format' });
+    }
+
+    if (livekitApiSecret.length < 32) {
+      console.error('Invalid LiveKit API Secret format - too short');
+      return res.status(500).json({ 
+        error: 'Invalid LiveKit API Secret format',
+        details: 'API Secret appears to be too short. Please check your credentials at https://cloud.livekit.io'
+      });
+    }
+
+    // Validate URL format
+    const urlPattern = /^wss?:\/\/[a-zA-Z0-9.-]+\.livekit\.cloud$/;
+    if (!urlPattern.test(livekitUrl)) {
+      console.error('Invalid LiveKit URL format:', livekitUrl);
+      return res.status(500).json({ 
+        error: 'Invalid LiveKit URL format',
+        details: 'URL should be in format: wss://your-project.livekit.cloud'
+      });
     }
 
     const accessToken = new AccessToken(livekitApiKey, livekitApiSecret, {
@@ -68,14 +89,23 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Error generating LiveKit token:', error);
     
-    // Check if it's a credential-related error
-    if (error.message && error.message.includes('cryptographic primitive')) {
+    // Enhanced error handling for credential issues
+    if (error.message && (error.message.includes('cryptographic primitive') || error.message.includes('invalid token'))) {
       return res.status(500).json({ 
-        error: 'Invalid LiveKit credentials. Please check your API key and secret.',
-        details: 'The API key and secret do not match or are invalid.'
+        error: 'Invalid LiveKit credentials',
+        details: 'The API key and secret do not match or are invalid. Please verify your credentials at https://cloud.livekit.io and ensure they are from the same project.',
+        troubleshooting: [
+          'Check that API Key and API Secret are from the same LiveKit project',
+          'Verify credentials haven\'t been rotated or expired',
+          'Ensure no extra spaces or characters in the credentials',
+          'Visit https://cloud.livekit.io to get fresh credentials'
+        ]
       });
     }
 
-    res.status(500).json({ error: 'Failed to generate token' });
+    res.status(500).json({ 
+      error: 'Failed to generate token',
+      details: error.message 
+    });
   }
 }

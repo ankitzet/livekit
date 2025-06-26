@@ -20,6 +20,7 @@ async function testLiveKitCredentials() {
     console.log('- LIVEKIT_URL');
     console.log('- LIVEKIT_API_KEY');
     console.log('- LIVEKIT_API_SECRET');
+    console.log('\n🔗 Get credentials from: https://cloud.livekit.io');
     return;
   }
   
@@ -27,9 +28,40 @@ async function testLiveKitCredentials() {
   console.log('API Key:', LIVEKIT_API_KEY);
   console.log('API Secret:', LIVEKIT_API_SECRET.substring(0, 10) + '...');
   
+  // Pre-validation checks
+  console.log('\n🔍 Pre-validation checks...');
+  
+  // Check URL format
+  const urlPattern = /^wss?:\/\/[a-zA-Z0-9.-]+\.livekit\.cloud$/;
+  if (!urlPattern.test(LIVEKIT_URL)) {
+    console.log('⚠️ URL format might be incorrect');
+    console.log('Expected format: wss://your-project.livekit.cloud');
+    console.log('Current URL:', LIVEKIT_URL);
+  } else {
+    console.log('✅ URL format is valid');
+  }
+  
+  // Check API key format
+  if (!LIVEKIT_API_KEY.startsWith('API') || LIVEKIT_API_KEY.length < 10) {
+    console.log('⚠️ API key format might be incorrect');
+    console.log('Expected format: API followed by alphanumeric characters');
+    console.log('Current key starts with:', LIVEKIT_API_KEY.substring(0, 5));
+  } else {
+    console.log('✅ API key format looks correct');
+  }
+  
+  // Check API secret format
+  if (LIVEKIT_API_SECRET.length < 32) {
+    console.log('⚠️ API secret might be too short');
+    console.log('Expected: Long alphanumeric string (32+ characters)');
+    console.log('Current length:', LIVEKIT_API_SECRET.length);
+  } else {
+    console.log('✅ API secret length looks correct');
+  }
+  
   try {
-    // Test 1: Create an access token
-    console.log('\n📝 Test 1: Creating access token...');
+    // Test: Create an access token
+    console.log('\n📝 Testing token generation...');
     const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
       identity: 'test-user',
       name: 'Test User',
@@ -46,8 +78,8 @@ async function testLiveKitCredentials() {
     console.log('✅ Access token created successfully');
     console.log('Token length:', jwt.length);
     
-    // Test 2: Make API call to LiveKit server
-    console.log('\n🌐 Test 2: Testing API connection...');
+    // Test API connection
+    console.log('\n🌐 Testing API connection...');
     
     // Convert WebSocket URL to HTTP URL for API calls
     const httpUrl = LIVEKIT_URL.replace('wss://', 'https://').replace('ws://', 'http://');
@@ -68,12 +100,12 @@ async function testLiveKitCredentials() {
     });
     
     console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
     if (response.ok) {
       const data = await response.json();
       console.log('✅ API call successful');
       console.log('Response data:', data);
+      console.log('\n🎉 All tests passed! Your LiveKit credentials are working correctly.');
     } else {
       const errorText = await response.text();
       console.log('❌ API call failed');
@@ -88,51 +120,33 @@ async function testLiveKitCredentials() {
       }
     }
     
-    // Test 3: Validate URL format
-    console.log('\n🔍 Test 3: Validating URL format...');
-    const urlPattern = /^wss?:\/\/[a-zA-Z0-9.-]+\.livekit\.cloud$/;
-    if (urlPattern.test(LIVEKIT_URL)) {
-      console.log('✅ URL format is valid');
-    } else {
-      console.log('⚠️ URL format might be incorrect');
-      console.log('Expected format: wss://your-project.livekit.cloud');
-    }
-    
-    // Test 4: Check API key format
-    console.log('\n🔑 Test 4: Validating API key format...');
-    if (LIVEKIT_API_KEY.startsWith('API') && LIVEKIT_API_KEY.length > 10) {
-      console.log('✅ API key format looks correct');
-    } else {
-      console.log('⚠️ API key format might be incorrect');
-      console.log('Expected format: API followed by alphanumeric characters');
-    }
-    
-    // Test 5: Check API secret format
-    console.log('\n🔐 Test 5: Validating API secret format...');
-    if (LIVEKIT_API_SECRET.length >= 40) {
-      console.log('✅ API secret length looks correct');
-    } else {
-      console.log('⚠️ API secret might be too short');
-      console.log('Expected: Long alphanumeric string (40+ characters)');
-    }
-    
-    console.log('\n🎉 LiveKit credential test completed!');
-    console.log('\nIf you\'re still getting token errors:');
-    console.log('1. Double-check your credentials at https://cloud.livekit.io');
-    console.log('2. Make sure you\'re using the correct project');
-    console.log('3. Verify the API secret hasn\'t been rotated');
-    
   } catch (error) {
     console.error('❌ Error testing LiveKit credentials:', error.message);
-    console.error('Full error:', error);
     
-    if (error.message.includes('invalid token') || error.message.includes('cryptographic')) {
-      console.log('\n🔍 This error suggests credential issues. Please:');
-      console.log('1. Verify your LIVEKIT_API_SECRET is correct');
-      console.log('2. Check that API_KEY and API_SECRET are from the same project');
-      console.log('3. Ensure credentials haven\'t been rotated');
+    if (error.message.includes('invalid token') || error.message.includes('cryptographic primitive')) {
+      console.log('\n🚨 CREDENTIAL ERROR DETECTED');
+      console.log('This error indicates that your LiveKit API Key and API Secret don\'t match.');
+      console.log('\n📋 To fix this:');
+      console.log('1. Go to https://cloud.livekit.io');
+      console.log('2. Select your project');
+      console.log('3. Go to Settings > Keys');
+      console.log('4. Copy BOTH the API Key and API Secret from the SAME row');
+      console.log('5. Update your .env file with the correct values');
+      console.log('6. Make sure there are no extra spaces or characters');
+      console.log('7. Restart your application');
+      console.log('\n⚠️ Common issues:');
+      console.log('- Using API Key from one project and API Secret from another');
+      console.log('- Using old credentials that have been rotated');
+      console.log('- Copy-paste errors (extra spaces, missing characters)');
+    } else {
+      console.error('Full error:', error);
     }
   }
+  
+  console.log('\n📚 Additional Resources:');
+  console.log('- LiveKit Dashboard: https://cloud.livekit.io');
+  console.log('- LiveKit Documentation: https://docs.livekit.io');
+  console.log('- API Key Management: https://docs.livekit.io/realtime/concepts/authentication/');
 }
 
 // Run the test

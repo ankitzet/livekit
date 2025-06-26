@@ -34,11 +34,9 @@ export default defineConfig({
       deny: ["**/.*"],
     },
     hmr: {
-      protocol: 'wss',
-      clientPort: 443,
-      host: process.env.REPL_SLUG && process.env.REPL_OWNER 
-        ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
-        : 'localhost',
+      protocol: 'ws',
+      clientPort: 5000,
+      host: '0.0.0.0',
     },
   },
 });

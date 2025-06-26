@@ -3,6 +3,24 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Enhanced CORS middleware for WebSocket support
+app.use((req, res, next) => {
+  // Set CORS headers for all requests including WebSocket upgrade requests
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, UPGRADE');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -56,15 +74,26 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Enhanced server configuration for WebContainer
   const port = 5000;
+  const host = process.env.REPL_ID || process.env.WEBCONTAINER ? '0.0.0.0' : 'localhost';
+  
   server.listen({
     port,
-    host: "0.0.0.0",
+    host,
     reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    log(`🚀 Server running on ${host}:${port}`);
+    log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    log(`📦 WebContainer: ${process.env.WEBCONTAINER ? 'Yes' : 'No'}`);
+    log(`🔧 Replit: ${process.env.REPL_ID ? 'Yes' : 'No'}`);
+    
+    // Log WebSocket server status
+    const wsServer = (server as any).wsServer;
+    if (wsServer) {
+      log(`🔌 WebSocket server: Active on /ws`);
+    } else {
+      log(`⚠️ WebSocket server: Not detected`);
+    }
   });
 })();

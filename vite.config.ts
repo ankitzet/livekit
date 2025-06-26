@@ -33,13 +33,14 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
-    hmr: {
-      // Use secure WebSocket protocol for WebContainer/Replit environments
-      protocol: process.env.REPL_ID || process.env.WEBCONTAINER ? 'wss' : 'ws',
-      // Use true to let Vite determine the correct host automatically
-      host: process.env.REPL_ID || process.env.WEBCONTAINER ? true : '0.0.0.0',
-      // Use standard HTTPS port for secure environments
-      clientPort: process.env.REPL_ID || process.env.WEBCONTAINER ? 443 : 5000,
+    // Completely disable HMR WebSocket in WebContainer environments
+    hmr: process.env.REPL_ID || process.env.WEBCONTAINER ? false : {
+      port: 5001, // Use different port for HMR
+      host: 'localhost'
     },
+    // Force specific host configuration
+    host: process.env.REPL_ID || process.env.WEBCONTAINER ? '0.0.0.0' : 'localhost',
+    port: 5000,
+    strictPort: true,
   },
 });

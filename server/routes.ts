@@ -31,18 +31,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // WebSocket server for Deepgram proxy and real-time features  
+  // Enhanced WebSocket server configuration for WebContainer compatibility
   const wss = new WebSocketServer({ 
     server: httpServer, 
+    path: '/ws',
+    perMessageDeflate: false,
+    clientTracking: true,
+    // Enhanced configuration for WebContainer
+    verifyClient: (info) => {
+      // Allow all origins in development/WebContainer
+      console.log('🔍 WebSocket connection attempt from:', info.origin);
+      return true;
+    },
+    handleProtocols: (protocols, request) => {
+      // Handle WebSocket protocol negotiation
+      console.log('🤝 WebSocket protocols:', protocols);
+      return protocols[0] || '';
+    }
+  });
+
+  // Store reference for debugging
+  (httpServer as any).wsServer = wss;
+
+  console.log('🔌 WebSocket server initialized on path /ws');
+  console.log('🌐 WebSocket server options:', {
     path: '/ws',
     perMessageDeflate: false,
     clientTracking: true
   });
 
-  console.log('WebSocket server initialized on path /ws');
-
   wss.on('connection', async (ws: WebSocket, req) => {
-    console.log('WebSocket client connected from:', req.socket.remoteAddress);
+    const clientIP = req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    console.log(`✅ WebSocket client connected from: ${clientIP}`);
+    console.log(`🔧 User Agent: ${userAgent}`);
+    console.log(`📊 Total connections: ${wss.clients.size}`);
 
     // Handle Deepgram WebSocket proxy
     let deepgramWs: WebSocket | null = null;
@@ -50,6 +73,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
+        console.log('📨 Received WebSocket message:', data.type);
         
         if (data.type === 'start_transcription') {
           // Initialize Deepgram connection
@@ -66,9 +90,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          // Use working Deepgram parameters from June 21st
+          // Use working Deepgram parameters
           const deepgramUrl = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&interim_results=true&smart_format=true&punctuate=true&encoding=linear16&sample_rate=16000&channels=1`;
-          console.log('Connecting to Deepgram with URL:', deepgramUrl);
+          console.log('🔗 Connecting to Deepgram with URL:', deepgramUrl);
           
           deepgramWs = new WebSocket(deepgramUrl, {
             headers: {
@@ -86,19 +110,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           deepgramWs.on('message', (deepgramMessage) => {
             try {
               const result = JSON.parse(deepgramMessage.toString());
-              console.log(`📥 DEEPGRAM FULL RESPONSE:`, JSON.stringify(result, null, 2));
               
               // Check all possible transcript locations
               if (result.type === 'Results') {
                 const alternatives = result.channel?.alternatives || [];
-                console.log(`🔍 Results format: ${alternatives.length} alternatives found`);
                 
                 if (alternatives.length > 0 && alternatives[0].transcript) {
                   const transcript = alternatives[0].transcript;
                   const confidence = alternatives[0].confidence || 0;
                   const isFinal = result.is_final || false;
                   
-                  console.log(`🎯 FOUND TRANSCRIPT: "${transcript}" (final=${isFinal}, conf=${confidence})`);
+                  console.log(`🎯 TRANSCRIPT: "${transcript}" (final=${isFinal})`);
                   
                   ws.send(JSON.stringify({
                     type: 'transcription',
@@ -110,28 +132,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     }
                   }));
                 }
-              } else if (result.alternatives && result.alternatives.length > 0) {
-                // Direct alternatives format
-                const transcript = result.alternatives[0].transcript;
-                if (transcript) {
-                  console.log(`🎯 DIRECT ALTERNATIVES: "${transcript}"`);
-                  
-                  ws.send(JSON.stringify({
-                    type: 'transcription',
-                    data: {
-                      transcript: transcript.trim(),
-                      is_final: true,
-                      confidence: result.alternatives[0].confidence || 0.9,
-                      timestamp: new Date().toISOString()
-                    }
-                  }));
-                }
-              } else {
-                console.log(`📊 NON-TRANSCRIPT: type=${result.type || 'unknown'}`);
               }
             } catch (error) {
-              console.error('❌ JSON PARSE ERROR:', error.message);
-              console.error('❌ RAW RESPONSE:', deepgramMessage.toString());
+              console.error('❌ Deepgram response parse error:', error.message);
             }
           });
 
@@ -144,45 +147,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           deepgramWs.on('close', () => {
-            console.log('Deepgram connection closed');
+            console.log('🔌 Deepgram connection closed');
             ws.send(JSON.stringify({
               type: 'transcription_ended'
             }));
           });
-        } else if (data.type === 'inject_transcript') {
-          // Test UI by injecting a known transcript
-          console.log('📝 Injecting test transcript to verify UI');
-          ws.send(JSON.stringify({
-            type: 'transcription',
-            data: data.data
-          }));
         } else if (data.type === 'audio_data' && data.audio) {
           const audioBuffer = Buffer.from(data.audio, 'base64');
           
-          // Enhanced debugging for audio processing
-          const audioLevel = Array.from(new Int16Array(audioBuffer.buffer, audioBuffer.byteOffset, audioBuffer.length / 2))
-            .reduce((max, val) => Math.max(max, Math.abs(val)), 0);
-          
-          // Reduced server logging for performance
-          if (Math.random() < 0.05) { // Log 5% of chunks
-            console.log(`🔊 SERVER RECEIVED: ${audioBuffer.length}bytes, level=${audioLevel}, format=PCM`);
-          }
-          
-          // CRITICAL FIX: Send raw binary PCM data to Deepgram (not JSON)
+          // Send raw binary PCM data to Deepgram
           if (deepgramWs && deepgramWs.readyState === 1) {
             deepgramWs.send(audioBuffer, { binary: true });
-            if (Math.random() < 0.05) {
-              console.log(`📤 SENT RAW PCM TO DEEPGRAM: ${audioBuffer.length}bytes`);
-            }
-          } else {
-            console.error('📤 ERROR: Deepgram WebSocket not ready, state:', deepgramWs?.readyState);
           }
         } else if (data.type === 'stop_transcription' && deepgramWs) {
           deepgramWs.close();
           deepgramWs = null;
         }
       } catch (error) {
-        console.error('WebSocket message error:', error);
+        console.error('❌ WebSocket message error:', error);
         ws.send(JSON.stringify({
           type: 'error',
           error: 'Invalid message format'
@@ -190,19 +172,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    ws.on('close', () => {
-      console.log('WebSocket client disconnected');
+    ws.on('close', (code, reason) => {
+      console.log(`🔌 WebSocket client disconnected: ${code} ${reason}`);
+      console.log(`📊 Remaining connections: ${wss.clients.size}`);
       if (deepgramWs) {
         deepgramWs.close();
       }
     });
 
     ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+      console.error('❌ WebSocket client error:', error);
       if (deepgramWs) {
         deepgramWs.close();
       }
     });
+
+    // Send welcome message to confirm connection
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      message: 'WebSocket connection successful'
+    }));
+  });
+
+  // WebSocket server error handling
+  wss.on('error', (error) => {
+    console.error('❌ WebSocket Server Error:', error);
+  });
+
+  wss.on('listening', () => {
+    console.log('🎧 WebSocket server is listening');
   });
 
   // Health check endpoint for deployment monitoring
@@ -216,6 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       services: {
         database: 'connected',
         websocket: wss ? 'connected' : 'disconnected',
+        websocket_clients: wss.clients.size,
         jitsi: 'external_service',
         deepgram: process.env.DEEPGRAM_API_KEY ? 'configured' : 'not_configured',
         gemini: process.env.GEMINI_API_KEY ? 'configured' : 'not_configured'

@@ -42,7 +42,7 @@ export function useTranscription(
 
       audioStreamRef.current = stream;
 
-      // CRITICAL: Use Web Audio API for PCM audio capture (replaces MediaRecorder)
+      // Use Web Audio API for PCM audio capture
       console.log("🎤 INITIALIZING: Web Audio API for PCM audio capture");
 
       try {
@@ -105,7 +105,6 @@ export function useTranscription(
         } as any;
 
         console.log("🎤 SUCCESS: Web Audio API transcription started");
-        console.log("Transcription started successfully with Web Audio API");
       } catch (error) {
         console.error("🎤 FAILED: Web Audio API setup error:", error);
         throw error;
@@ -131,14 +130,6 @@ export function useTranscription(
               return "Candidate";
             }
 
-            // Secondary: Check participant identity
-            const participantIdentity = room?.localParticipant?.identity || "";
-            if (participantIdentity.includes("interviewer")) {
-              return "Interviewer";
-            } else if (participantIdentity.includes("candidate")) {
-              return "Candidate";
-            }
-
             // Fallback: Use the isInterviewer parameter
             return isInterviewer ? "Interviewer" : "Candidate";
           };
@@ -160,26 +151,6 @@ export function useTranscription(
               ? [...finalEntries, entry]
               : [...finalEntries, entry];
 
-            // Broadcast final transcription to interviewer via data channel
-            if (result.isFinal && room?.localParticipant && !isInterviewer) {
-              try {
-                const transcriptionData = JSON.stringify({
-                  type: "transcription",
-                  entry: entry,
-                });
-                room.localParticipant.publishData(
-                  new TextEncoder().encode(transcriptionData),
-                  { reliable: true },
-                );
-                console.log(
-                  "Broadcasting transcription to interviewer:",
-                  entry.text,
-                );
-              } catch (error) {
-                console.error("Error broadcasting transcription:", error);
-              }
-            }
-
             return newTranscriptions;
           });
         },
@@ -195,7 +166,7 @@ export function useTranscription(
       await transcriptionServiceRef.current.start();
 
       setIsTranscribing(true);
-      console.log("Transcription started successfully with MediaRecorder");
+      console.log("Transcription started successfully with Web Audio API");
     } catch (err) {
       console.error("Failed to start transcription:", err);
       setError(
@@ -203,7 +174,7 @@ export function useTranscription(
       );
       setIsTranscribing(false);
     }
-  }, []);
+  }, [isInterviewer]);
 
   const stopTranscription = useCallback(async () => {
     if (!isTranscribing) return;
@@ -322,37 +293,6 @@ export function useTranscription(
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isTranscribing]);
-
-  // Listen for transcriptions from other participants (only if interviewer)
-  useEffect(() => {
-    if (!room || !isInterviewer) return;
-
-    const handleDataReceived = (payload: Uint8Array, participant: any) => {
-      try {
-        const data = JSON.parse(new TextDecoder().decode(payload));
-        if (data.type === "transcription") {
-          const speakerName = participant.identity?.startsWith("interviewer-")
-            ? "Interviewer"
-            : "Candidate";
-          const entry: TranscriptionEntry = {
-            ...data.entry,
-            speaker: speakerName,
-            id: `${participant.identity}-${data.entry.id}`,
-          };
-
-          setTranscriptions((prev) => [...prev, entry]);
-        }
-      } catch (error) {
-        console.error("Error parsing transcription data:", error);
-      }
-    };
-
-    room.on("dataReceived", handleDataReceived);
-
-    return () => {
-      room.off("dataReceived", handleDataReceived);
-    };
-  }, [room, isInterviewer]);
 
   return {
     transcriptions,

@@ -34,9 +34,12 @@ export default defineConfig({
       deny: ["**/.*"],
     },
     hmr: {
-      protocol: 'ws',
-      clientPort: 5000,
-      host: '0.0.0.0',
+      // Use secure WebSocket protocol for WebContainer/Replit environments
+      protocol: process.env.REPL_ID || process.env.WEBCONTAINER ? 'wss' : 'ws',
+      // Use true to let Vite determine the correct host automatically
+      host: process.env.REPL_ID || process.env.WEBCONTAINER ? true : '0.0.0.0',
+      // Use standard HTTPS port for secure environments
+      clientPort: process.env.REPL_ID || process.env.WEBCONTAINER ? 443 : 5000,
     },
   },
 });

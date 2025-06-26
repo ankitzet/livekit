@@ -41,7 +41,12 @@ export class LiveKitService {
       // Get the WebSocket URL from environment variables
       const WS_URL = import.meta.env.VITE_LIVEKIT_WS_URL;
       if (!WS_URL) {
-        throw new Error('Missing VITE_LIVEKIT_WS_URL environment variable');
+        throw new Error('Missing VITE_LIVEKIT_WS_URL environment variable. Please check your .env file and ensure VITE_LIVEKIT_WS_URL is set to your LiveKit WebSocket URL (e.g., wss://your-project.livekit.cloud)');
+      }
+
+      // Validate the WebSocket URL format
+      if (!WS_URL.startsWith('wss://') && !WS_URL.startsWith('ws://')) {
+        throw new Error('Invalid VITE_LIVEKIT_WS_URL format. URL must start with wss:// or ws://');
       }
 
       console.log('LiveKit WS URL:', WS_URL);

@@ -26,6 +26,7 @@ import {
   User,
   Share2,
   ExternalLink,
+  AlertTriangle,
 } from "lucide-react";
 
 // Import ParticipantVideo directly from video-grid
@@ -270,11 +271,62 @@ interface MeetingProps {
   };
 }
 
+// Environment Configuration Check Component
+function EnvironmentCheck() {
+  const wsUrl = import.meta.env.VITE_LIVEKIT_WS_URL;
+  
+  if (!wsUrl || wsUrl === 'wss://your-project-name.livekit.cloud') {
+    return (
+      <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+          <div className="text-red-600 mb-4 text-center">
+            <AlertTriangle className="w-12 h-12 mx-auto" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-4 text-center">
+            Configuration Required
+          </h2>
+          <div className="space-y-3 text-sm text-gray-600">
+            <p>Your LiveKit configuration is missing or incomplete.</p>
+            <div className="bg-gray-50 p-3 rounded">
+              <p className="font-medium mb-2">To fix this:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Go to <a href="https://cloud.livekit.io" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">cloud.livekit.io</a></li>
+                <li>Create or select your project</li>
+                <li>Go to Settings → Keys</li>
+                <li>Copy your project's WebSocket URL</li>
+                <li>Update your .env file with the correct VITE_LIVEKIT_WS_URL</li>
+                <li>Restart the application</li>
+              </ol>
+            </div>
+            <p className="text-xs text-gray-500">
+              Current VITE_LIVEKIT_WS_URL: {wsUrl || 'Not set'}
+            </p>
+          </div>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="w-full mt-4"
+          >
+            Retry After Configuration
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  return null;
+}
+
 // Clean version - will copy back
 export default function Meeting({ params }: MeetingProps) {
   const { roomName } = params;
   const urlParams = new URLSearchParams(window.location.search);
   const isInterviewer = urlParams.get("role") === "interviewer";
+
+  // Check environment configuration first
+  const envCheck = EnvironmentCheck();
+  if (envCheck) {
+    return envCheck;
+  }
 
   // Debug environment variables on component mount
   useEffect(() => {
@@ -287,6 +339,9 @@ export default function Meeting({ params }: MeetingProps) {
     if (!wsUrl) {
       console.error('❌ Missing VITE_LIVEKIT_WS_URL environment variable');
       console.log('Please add VITE_LIVEKIT_WS_URL to your .env file');
+    } else if (wsUrl === 'wss://your-project-name.livekit.cloud') {
+      console.warn('⚠️ VITE_LIVEKIT_WS_URL is still set to placeholder value');
+      console.log('Please update VITE_LIVEKIT_WS_URL with your actual LiveKit project URL');
     } else {
       console.log('✅ VITE_LIVEKIT_WS_URL is configured:', wsUrl);
     }
@@ -429,6 +484,16 @@ export default function Meeting({ params }: MeetingProps) {
             Connection Error
           </h2>
           <p className="text-gray-600 mb-4">{error}</p>
+          {error.includes('VITE_LIVEKIT_WS_URL') && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4 text-left">
+              <p className="text-sm text-yellow-800 font-medium mb-2">Configuration Help:</p>
+              <ol className="text-xs text-yellow-700 list-decimal list-inside space-y-1">
+                <li>Check your .env file exists in the project root</li>
+                <li>Ensure VITE_LIVEKIT_WS_URL is set to your LiveKit WebSocket URL</li>
+                <li>Restart the development server after updating .env</li>
+              </ol>
+            </div>
+          )}
           <Button onClick={() => window.location.reload()}>Try Again</Button>
         </div>
       </div>

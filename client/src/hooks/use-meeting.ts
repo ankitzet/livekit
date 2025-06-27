@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { jitsiService, type JitsiMeetConfig } from '@/services/jitsi-service';
 
-export function useJitsiMeeting() {
+export function useMeeting() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,12 +80,10 @@ export function useJitsiMeeting() {
 
   const toggleMute = useCallback(() => {
     jitsiService.toggleMute();
-    // Note: The actual mute state will be updated via the audioMuteChanged event
   }, []);
 
   const toggleVideo = useCallback(() => {
     jitsiService.toggleVideo();
-    // Note: The actual video state will be updated via the videoMuteChanged event
   }, []);
 
   const toggleScreenShare = useCallback(() => {

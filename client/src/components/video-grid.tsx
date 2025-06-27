@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Video, Users, Wifi, WifiOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Video, VideoOff, Mic, MicOff, User, Wifi, WifiOff } from 'lucide-react';
 
-interface JitsiMeetingContainerProps {
+interface VideoGridProps {
   containerRef: React.RefObject<HTMLDivElement>;
   isConnecting: boolean;
   isConnected: boolean;
@@ -14,7 +14,7 @@ interface JitsiMeetingContainerProps {
   onRetry?: () => void;
 }
 
-export default function JitsiMeetingContainer({
+export default function VideoGrid({
   containerRef,
   isConnecting,
   isConnected,
@@ -22,7 +22,7 @@ export default function JitsiMeetingContainer({
   participants,
   roomName,
   onRetry
-}: JitsiMeetingContainerProps) {
+}: VideoGridProps) {
   if (error) {
     return (
       <Card className="h-full flex items-center justify-center">
@@ -88,7 +88,7 @@ export default function JitsiMeetingContainer({
         
         {participants.length > 0 && (
           <Badge variant="outline" className="bg-white/90 backdrop-blur-sm">
-            <Users className="w-3 h-3 mr-1" />
+            <User className="w-3 h-3 mr-1" />
             {participants.length + 1} participants
           </Badge>
         )}

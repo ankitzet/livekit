@@ -85,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error('❌ Deepgram API key not configured');
             ws.send(JSON.stringify({
               type: 'error',
-              error: 'Deepgram API key not configured'
+              error: 'Deepgram API key not configured. Please check your .env file.'
             }));
             return;
           }
@@ -225,6 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(healthStatus);
   });
 
+  // Gemini AI Follow-up Suggestions API endpoint
   app.post('/api/gemini/follow-up-suggestions', async (req, res) => {
     try {
       console.log('🚀 Received follow-up suggestions request');
@@ -240,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         console.log('❌ Gemini API key not configured');
-        return res.status(500).json({ error: 'Gemini API key not configured' });
+        return res.status(500).json({ error: 'Gemini API key not configured. Please check your .env file.' });
       }
 
       console.log('🔑 Gemini API key found, initializing AI service');

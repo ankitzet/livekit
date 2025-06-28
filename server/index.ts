@@ -1,6 +1,10 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { config } from "dotenv";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+
+// Load environment variables from .env file
+config();
 
 const app = express();
 
@@ -55,6 +59,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Log environment variable status
+  log(`🔑 Environment Variables Status:`);
+  log(`   DEEPGRAM_API_KEY: ${process.env.DEEPGRAM_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
+  log(`   GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
+  log(`   NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -95,5 +105,10 @@ app.use((req, res, next) => {
     } else {
       log(`⚠️ WebSocket server: Not detected`);
     }
+
+    // Log API proxy status
+    log(`🔗 API Proxy: /api/* requests forwarded to backend`);
+    log(`🤖 Gemini API: ${process.env.GEMINI_API_KEY ? 'Ready' : 'Not configured'}`);
+    log(`🎤 Deepgram API: ${process.env.DEEPGRAM_API_KEY ? 'Ready' : 'Not configured'}`);
   });
 })();

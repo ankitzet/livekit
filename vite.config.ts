@@ -33,6 +33,31 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // API proxy configuration - crucial for Gemini and Deepgram
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+        ws: true, // Enable WebSocket proxying for Deepgram
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('🔴 Proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('🔗 Proxying request:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('✅ Proxy response:', proxyRes.statusCode, req.url);
+          });
+        },
+      },
+      '/ws': {
+        target: 'ws://localhost:5000',
+        ws: true,
+        changeOrigin: true,
+      }
+    },
     // Completely disable HMR WebSocket in WebContainer environments
     hmr: process.env.REPL_ID || process.env.WEBCONTAINER ? false : {
       port: 5001, // Use different port for HMR

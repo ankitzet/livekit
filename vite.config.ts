@@ -33,6 +33,19 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // Proxy API requests to backend server
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ws': {
+        target: 'ws://localhost:5000',
+        ws: true,
+        changeOrigin: true,
+      }
+    },
     // Completely disable HMR WebSocket in WebContainer environments
     hmr: process.env.REPL_ID || process.env.WEBCONTAINER ? false : {
       port: 5001, // Use different port for HMR
@@ -40,7 +53,7 @@ export default defineConfig({
     },
     // Force specific host configuration
     host: process.env.REPL_ID || process.env.WEBCONTAINER ? '0.0.0.0' : 'localhost',
-    port: 5000,
+    port: 3000, // Changed to 3000 to avoid conflicts
     strictPort: true,
   },
 });

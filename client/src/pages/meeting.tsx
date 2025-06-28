@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+//client/src/pages/meeting.tsx
+
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { useMeeting } from "@/hooks/use-meeting";
+import { useJitsiMeeting } from "@/hooks/use-jitsi-meeting";
 import { useTranscription } from "@/hooks/use-transcription";
 import { useFollowUpSuggestions } from "@/hooks/use-follow-up-suggestions";
 import { useInterviewTimer } from "@/hooks/use-interview-timer";
@@ -8,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import VideoGrid from "@/components/video-grid";
+import JitsiMeetingContainer from "@/components/jitsi-meeting-container";
 import MeetingControls from "@/components/meeting-controls";
 import { ErrorBoundary } from "@/components/error-boundary";
 
@@ -103,7 +105,7 @@ export default function Meeting({ params }: MeetingProps) {
     toggleMute,
     toggleVideo,
     toggleScreenShare,
-  } = useMeeting();
+  } = useJitsiMeeting();
 
   const {
     transcriptions: rawTranscriptions,
@@ -278,7 +280,7 @@ export default function Meeting({ params }: MeetingProps) {
                 )}
 
               {/* Jitsi Meeting Container */}
-              <VideoGrid
+              <JitsiMeetingContainer
                 containerRef={containerRef}
                 isConnecting={isConnecting}
                 isConnected={isConnected}
@@ -495,7 +497,7 @@ export default function Meeting({ params }: MeetingProps) {
                 </div>
               }
             >
-              <VideoGrid
+              <JitsiMeetingContainer
                 containerRef={containerRef}
                 isConnecting={isConnecting}
                 isConnected={isConnected}
